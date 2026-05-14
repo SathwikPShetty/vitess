@@ -39,24 +39,25 @@ func (v *YearMonth) NeedsVCursor() bool {
 	return false
 }
 
-// func (v *YearMonth) Hash(id sqltypes.Value) ([]byte, error) {
-// 	return v.computeKSID(id)
-// }
-
 func (v *YearMonth) Hash(id sqltypes.Value) ([]byte, error) {
-	ksid, err := v.computeKSID(id)
-	if err != nil {
-		return nil, err
-	}
-
-	fmt.Printf(
-		"YEARMONTH INPUT=%s OUTPUT=%08b\n",
-		id.ToString(),
-		ksid[0],
-	)
-
-	return ksid, nil
+	return v.computeKSID(id)
 }
+
+// func (v *YearMonth) Hash(id sqltypes.Value) ([]byte, error) {
+
+// 	ksid, err := v.computeKSID(id)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	fmt.Printf(
+// 		"YEARMONTH INPUT=%s OUTPUT=%08b\n",
+// 		id.ToString(),
+// 		ksid[0],
+// 	)
+
+// 	return ksid, nil
+// }
 
 func (v *YearMonth) Verify(
 	ctx context.Context,
@@ -98,40 +99,105 @@ func (v *YearMonth) Map(
 func (v *YearMonth) computeKSID(id sqltypes.Value) ([]byte, error) {
 	ts := id.ToString()
 
-	// Example input:
-	// 2024-10-01T12:00:00Z
+	var t time.Time
+	var err error
 
-	t, err := time.Parse(time.RFC3339, ts)
+	// MySQL DATETIME(6)
+	t, err = time.Parse(
+		"2006-01-02 15:04:05.999999",
+		ts,
+	)
+
 	if err != nil {
-		// fallback for plain date
-		t, err = time.Parse("2006-01-02", ts)
+
+		// MySQL DATETIME
+		t, err = time.Parse(
+			"2006-01-02 15:04:05",
+			ts,
+		)
+
 		if err != nil {
-			return nil, fmt.Errorf("invalid timestamp format: %v", err)
+
+			// MySQL DATE
+			t, err = time.Parse(
+				"2006-01-02",
+				ts,
+			)
+
+			if err != nil {
+				return nil, fmt.Errorf(
+					"invalid datetime format: %v",
+					err,
+				)
+			}
 		}
 	}
 
-	year := (t.Year()-2025)*12 + int(t.Month()) - 1
+	// Month offset from Jan 2025
+	yearMonth := (t.Year()-2025)*12 + int(t.Month()) - 1
 
-	// upper 4 bits = year
-	// lower 4 bits = month
+	if yearMonth < 0 {
+		return nil, fmt.Errorf(
+			"year must be >= 2025",
+		)
+	}
 
-	value := byte(year)
-
-	return []byte{value}, nil
+	// 1-byte KSID
+	return []byte{
+		byte(yearMonth),
+	}, nil
 }
 
-func testYearMonth() {
-	v := &YearMonth{}
+// func testYearMonth() {
 
-	id := sqltypes.NewVarChar("2026-02-15T12:00:00Z")
+// 	v := &YearMonth{}
 
-	ksid, _ := v.Hash(id)
+// 	tests := []string{
+// 		"2025-01-01 00:00:00",
+// 		"2025-02-01 00:00:00",
+// 		"2025-03-27 10:30:47",
+// 		"2025-12-31 23:59:59",
+// 		"2026-01-01 00:00:00",
+// 		"2027-06-15 12:00:00",
+// 		"2030-01-01 00:00:00",
+// 		"2025-03-27 10:30:47.123456",
+// 	}
 
-	fmt.Printf("TEST YEARMONTH = %08b\n", ksid[0])
-}
+// 	fmt.Println("==== YEARMONTH TEST ====")
+
+// 	for _, ts := range tests {
+
+// 		id := sqltypes.NewVarChar(ts)
+
+// 		ksid, err := v.Hash(id)
+
+// 		if err != nil {
+
+// 			fmt.Printf(
+// 				"INPUT=%s ERROR=%v\n",
+// 				ts,
+// 				err,
+// 			)
+
+// 			continue
+// 		}
+
+// 		value := uint8(ksid[0])
+
+// 		fmt.Printf(
+// 			"INPUT=%s KSID=%v MONTH_INDEX=%d BINARY=%08b\n",
+// 			ts,
+// 			ksid,
+// 			value,
+// 			value,
+// 		)
+// 	}
+
+// 	fmt.Println("========================")
+// }
 
 func init() {
 	Register("yearmonth", NewYearMonth)
 
-	testYearMonth()
+	// testYearMonth()
 }

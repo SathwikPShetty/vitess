@@ -3,7 +3,7 @@ package vindexes
 
 import (
 	"context"
-	"fmt"
+	// "fmt"
 
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/key"
@@ -38,21 +38,21 @@ func (v *Zero) NeedsVCursor() bool {
 	return false
 }
 
-// func (v *Zero) Hash(id sqltypes.Value) ([]byte, error) {
-// 	return []byte{0x00}, nil
-// }
-
 func (v *Zero) Hash(id sqltypes.Value) ([]byte, error) {
-	ksid := []byte{0x00}
-
-	fmt.Printf(
-		"ZERO INPUT=%s OUTPUT=%08b\n",
-		id.ToString(),
-		ksid[0],
-	)
-
-	return ksid, nil
+	return []byte{0x00}, nil
 }
+
+// func (v *Zero) Hash(id sqltypes.Value) ([]byte, error) {
+// 	ksid := []byte{0x00}
+
+// 	fmt.Printf(
+// 		"ZERO INPUT=%s OUTPUT=%08b\n",
+// 		id.ToString(),
+// 		ksid[0],
+// 	)
+
+// 	return ksid, nil
+// }
 
 func (v *Zero) Verify(
 	ctx context.Context,
@@ -85,18 +85,18 @@ func (v *Zero) Map(
 	return destinations, nil
 }
 
-func testZero() {
-	v := &Zero{}
+// func testZero() {
+// 	v := &Zero{}
 
-	id := sqltypes.NewVarChar("abc")
+// 	id := sqltypes.NewVarChar("abc")
 
-	ksid, _ := v.Hash(id)
+// 	ksid, _ := v.Hash(id)
 
-	fmt.Printf("TEST ZERO = %08b\n", ksid[0])
-}
+// 	fmt.Printf("TEST ZERO = %08b\n", ksid[0])
+// }
 
 func init() {
 	Register("zero", NewZero)
 
-	testZero()
+	// testZero()
 }

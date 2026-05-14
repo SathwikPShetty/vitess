@@ -89,6 +89,8 @@ var availableVindexes = []string{
 	"cfc",
 	"numeric",
 	"numeric_static_map",
+	"yearmonth",
+	"zero",
 	"xxhash",
 	"unicode_loose_xxhash",
 	"reverse_bits",
