@@ -97,6 +97,16 @@ func (v *YearMonth) Map(
 }
 
 func (v *YearMonth) computeKSID(id sqltypes.Value) ([]byte, error) {
+	// NULL partition_key is a data-quality bug at the source. Reject loudly
+	// rather than silently routing the row to a catch-all shard, so the
+	// caller fixes the dump / app code instead of accumulating orphan rows
+	// in pmin that no query can locate by date.
+	if id.IsNull() {
+		return nil, fmt.Errorf(
+			"yearmonth: partition_key is NULL",
+		)
+	}
+
 	ts := id.ToString()
 
 	var t time.Time
@@ -133,12 +143,26 @@ func (v *YearMonth) computeKSID(id sqltypes.Value) ([]byte, error) {
 		}
 	}
 
-	// Month offset from Jan 2025
+	// Month offset from Jan 2025. One byte (0..255) covers Jan 2025 .. Dec 2045.
 	yearMonth := (t.Year()-2025)*12 + int(t.Month()) - 1
 
+	// Pre-2025 → route to pmin (catch-all for legacy data). The pmin shard
+	// (-0005 keyrange) owns byte values 0x00..0x04, so emitting 0x00 here
+	// lands the row inside pmin's range. This handles legitimate historical
+	// data that predates the partitioning epoch.
 	if yearMonth < 0 {
+		return []byte{0x00}, nil
+	}
+
+	// Post-Dec-2045 (offset > 255): reject explicitly. We could clamp to
+	// 0xFF (pmax) but that conflates "far future" with "currently active
+	// future months", which makes sliding-window operations ambiguous.
+	// If we ever need to support dates past 2045 we should widen the byte
+	// to a 2-byte month offset rather than overload pmax.
+	if yearMonth > 0xFF {
 		return nil, fmt.Errorf(
-			"year must be >= 2025",
+			"yearmonth: %04d-%02d is beyond the supported epoch (Jan 2025 .. Dec 2045); offset=%d > 255",
+			t.Year(), t.Month(), yearMonth,
 		)
 	}
 
